@@ -57,10 +57,19 @@
     .tile img{ width:100%; height:100%; object-fit: cover; transition: transform .5s ease; display:block; }
     .tile:hover img{ transform: scale(1.05); }
 
-    .lightbox{ position: fixed; inset:0; display:none; align-items:center; justify-content:center; background: rgba(0,0,0,.65); z-index: 10; }
+    /* Lightbox */
+    .lightbox{ position: fixed; inset:0; display:none; align-items:center; justify-content:center; background: rgba(0,0,0,.75); z-index: 10; }
     .lightbox.open{ display:flex; }
     .lightbox img{ max-width: min(92vw, 1200px); max-height: 86vh; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
     .lightbox .close{ position:absolute; top: 18px; right: 18px; background: #ffffff; border:none; border-radius: 999px; width: 44px; height: 44px; cursor:pointer; font-size: 24px; }
+
+    /* Nav arrows */
+    .nav{ position:absolute; top:50%; transform: translateY(-50%); display:flex; align-items:center; justify-content:center; width: 56px; height:56px; border:none; border-radius: 999px; background: rgba(255,255,255,.9); cursor:pointer; box-shadow: 0 6px 24px rgba(0,0,0,.25); font-size: 22px; }
+    .nav:active{ transform: translateY(-50%) scale(.98); }
+    .nav.prev{ left: 20px; }
+    .nav.next{ right: 20px; }
+
+    .counter{ position:absolute; bottom: 18px; left:50%; transform: translateX(-50%); background: rgba(0,0,0,.55); color:#fff; padding: 6px 10px; border-radius: 999px; font-size: .9rem; }
 
     footer{ text-align:center; opacity:.7; font-size: .9rem; padding: 24px 0; }
   </style>
@@ -86,7 +95,10 @@
 
   <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Photo viewer">
     <button class="close" id="closeBtn" aria-label="Close">×</button>
+    <button class="nav prev" id="prevBtn" aria-label="Previous">‹</button>
     <img id="lightboxImg" alt="Enlarged photo" />
+    <button class="nav next" id="nextBtn" aria-label="Next">›</button>
+    <div class="counter" id="counter">1 / 1</div>
   </div>
 
   <script>
@@ -104,6 +116,7 @@
     document.getElementById('name').textContent = birthdayPersonName;
     document.getElementById('fromName').textContent = fromName;
 
+    // Floating hearts
     const heartsWrap = document.querySelector('.hearts');
     const colors = ["#ff7aa2", "#8a7cff", "#ffc371", "#7ce6cf"];
     for (let i=0; i<24; i++){
@@ -116,6 +129,7 @@
       heartsWrap.appendChild(h);
     }
 
+    // Build gallery
     const grid = document.getElementById('grid');
     photos.forEach((file, idx) => {
       const tile = document.createElement('figure');
@@ -124,24 +138,70 @@
       img.src = `images/${file}`;
       img.alt = captions[idx] || `Photo ${idx+1}`;
       tile.appendChild(img);
-      tile.addEventListener('click', () => openLightbox(img.src, img.alt));
+      tile.addEventListener('click', () => openLightbox(idx));
       grid.appendChild(tile);
     });
 
+    // Lightbox logic with next/prev + swipe
     const lightbox = document.getElementById('lightbox');
     const lightboxImg = document.getElementById('lightboxImg');
     const closeBtn = document.getElementById('closeBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const counter = document.getElementById('counter');
 
-    function openLightbox(src, alt){
-      lightboxImg.src = src; lightboxImg.alt = alt; lightbox.classList.add('open');
+    let currentIndex = 0;
+
+    function updateCounter(){ counter.textContent = `${currentIndex+1} / ${photos.length}`; }
+
+    function show(index){
+      currentIndex = (index + photos.length) % photos.length; // wrap around
+      const file = photos[currentIndex];
+      const alt = captions[currentIndex] || `Photo ${currentIndex+1}`;
+      lightboxImg.src = `images/${file}`;
+      lightboxImg.alt = alt;
+      updateCounter();
+    }
+
+    function openLightbox(index){
+      show(index);
+      lightbox.classList.add('open');
     }
     function closeLightbox(){
       lightbox.classList.remove('open');
       setTimeout(() => { lightboxImg.src = ''; }, 200);
     }
+
+    function next(){ show(currentIndex + 1); }
+    function prev(){ show(currentIndex - 1); }
+
+    nextBtn.addEventListener('click', next);
+    prevBtn.addEventListener('click', prev);
     closeBtn.addEventListener('click', closeLightbox);
-    lightbox.addEventListener('click', (e)=>{ if(e.target === lightbox) closeLightbox(); });
-    window.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeLightbox(); });
+
+    // Click outside image closes; clicking on image advances
+    lightbox.addEventListener('click', (e)=>{
+      if(e.target === lightbox) closeLightbox();
+    });
+    lightboxImg.addEventListener('click', next);
+
+    // Keyboard controls
+    window.addEventListener('keydown', (e)=>{
+      if(!lightbox.classList.contains('open')) return;
+      if(e.key === 'Escape') closeLightbox();
+      if(e.key === 'ArrowRight') next();
+      if(e.key === 'ArrowLeft') prev();
+    });
+
+    // Touch swipe for mobile
+    let touchStartX = 0, touchEndX = 0;
+    lightbox.addEventListener('touchstart', (e)=>{ touchStartX = e.changedTouches[0].screenX; }, {passive:true});
+    lightbox.addEventListener('touchend', (e)=>{
+      touchEndX = e.changedTouches[0].screenX;
+      const dx = touchEndX - touchStartX;
+      const threshold = 40; // min px for swipe
+      if(Math.abs(dx) > threshold){ dx < 0 ? next() : prev(); }
+    }, {passive:true});
   </script>
 </body>
 </html>
